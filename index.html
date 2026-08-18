@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>The Leader I See</title>
+<style>
+  /* === RESET & BASE === */
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ height:100%; }
+  body{
+    font-family:'Segoe UI', system-ui, -apple-system, sans-serif;
+    background:var(--bg-dark);
+    color:var(--text-primary);
+    overflow-x:hidden;
+  }
+
+  /* === BẢNG MÀU (giữ nguyên palette maroon / cream / brown / tan / terracotta) === */
+  :root{
+    --maroon:#A60321;
+    --brown:#8C5C32;
+    --tan:#D9A577;
+    --terracotta:#D97B66;
+    --cream:#F2E9D8;
+
+    --bg-dark:#1F0D08;
+    --text-primary:#F2E9D8;
+    --text-secondary:#CBB89C;
+    --ink:#5C3A1F;
+    --ink-soft:#6B4526;
+    --chip-bg:rgba(31,13,8,.82); /* nền chip cố định — luôn đủ tối bất kể ảnh bên dưới sáng hay tối */
+    --card-radius:16px;
+  }
+
+  /* === LAYOUT === */
+  .screen{
+    display:none;
+    min-height:100vh;
+    width:100%;
+    flex-direction:column;
+    align-items:center;
+    padding:24px 18px 32px;
+  }
+  .screen.active{ display:flex; }
+
+  /* === COMPONENTS === */
+  .eyebrow{
+    font-size:.75rem;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    color:var(--terracotta);
+    margin-bottom:10px;
+    text-align:center;
+  }
+  h1{ font-size:1.7rem; font-weight:700; text-align:center; line-height:1.3; margin-bottom:10px; color:var(--text-primary); }
+  h2{ font-size:1.2rem; font-weight:700; text-align:center; margin-bottom:16px; color:var(--text-primary); }
+  p.lead{ font-size:.95rem; color:var(--text-secondary); text-align:center; line-height:1.6; max-width:340px; margin-bottom:28px; }
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    min-height:48px; padding:12px 28px; border:none; border-radius:999px;
+    font-size:.95rem; font-weight:600; letter-spacing:.3px; cursor:pointer;
+    transition:transform .15s ease, opacity .15s ease;
+  }
+  .btn:active{ transform:scale(.96); }
+  .btn-primary{ background:var(--maroon); color:var(--cream); }
+  .btn-ghost{ background:transparent; color:var(--cream); border:1px solid rgba(242,233,216,.4); }
+  .btn-sm{ min-height:40px; padding:9px 18px; font-size:.82rem; }
+  .btn-block{ width:100%; max-width:340px; }
+  .btn-row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:14px; }
+
+  /* === GAME-SPECIFIC: GRID === */
+  .grid-header{ width:100%; max-width:420px; text-align:center; margin-bottom:18px; }
+  .instruction{ font-size:.85rem; color:var(--text-secondary); margin-top:4px; }
+  .card-grid{
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:9px;
+    width:100%; max-width:420px; margin-bottom:20px;
+  }
+  .pcard{
+    aspect-ratio:3/4;
+    border-radius:12px;
+    position:relative;
+    overflow:hidden;
+    cursor:pointer;
+    background-color:var(--ink);   /* màu nền tạm trong lúc ảnh đang load */
+    background-size:cover;
+    background-position:center;
+    border:2px solid transparent;
+    transition:transform .15s ease, border-color .15s ease;
+  }
+  .pcard:active{ transform:scale(.95); }
+  .pcard.selected{
+    transform:scale(1.03);
+    border:3px solid var(--maroon);   /* chọn ảnh → viền đỏ */
+  }
+  .pcard::after{
+    content:"";
+    position:absolute; inset:0;
+    background:linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(0,0,0,.55) 100%);
+    pointer-events:none;
+  }
+  .pcard-label{
+    position:absolute; bottom:7px; left:50%;
+    transform:translateX(-50%);
+    background:var(--chip-bg);
+    padding:3px 10px;
+    border-radius:999px;
+    text-align:center;
+    font-size:.62rem;
+    letter-spacing:.5px;
+    color:var(--cream);
+    z-index:2;
+    white-space:nowrap;
+  }
+
+  .shuffle-btn{
+    display:inline-flex; align-items:center; gap:6px;
+    background:rgba(242,233,216,.08);
+    color:var(--cream);
+    border:1px solid rgba(242,233,216,.3);
+    border-radius:999px;
+    padding:10px 20px; font-size:.85rem; font-weight:600; cursor:pointer;
+    margin-bottom:6px;
+  }
+  .shuffle-btn:active{ transform:scale(.96); }
+  .shuffle-icon{ display:inline-block; transition:transform .4s ease; }
+  .shuffle-btn.spin .shuffle-icon{ transform:rotate(360deg); }
+
+  /* === GAME-SPECIFIC: REVEAL === */
+  .reveal-wrap{ width:100%; max-width:360px; display:flex; flex-direction:column; align-items:center; }
+  .flip-card{ width:100%; max-width:280px; aspect-ratio:3/4; perspective:1200px; margin-bottom:18px; cursor:pointer; }
+  .flip-inner{
+    position:relative; width:100%; height:100%;
+    transition:transform .7s cubic-bezier(.4,.2,.2,1);
+    transform-style:preserve-3d;
+  }
+  .flip-inner.flipped{ transform:rotateY(180deg); }
+  .flip-face{
+    position:absolute; inset:0;
+    border-radius:var(--card-radius);
+    backface-visibility:hidden;
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:flex-end;
+    padding:16px;
+    box-shadow:0 12px 30px rgba(0,0,0,.35);
+  }
+  .flip-front{
+    background-color:var(--ink);
+    background-size:cover;
+    background-position:center;
+    border:3px solid var(--maroon);
+    background-image:linear-gradient(180deg, rgba(0,0,0,0) 50%, rgba(0,0,0,.55) 100%), var(--card-photo, none);
+  }
+  .flip-front span{
+    background:var(--chip-bg);
+    border:1px solid rgba(242,233,216,.12);
+    padding:6px 14px; border-radius:999px;
+    font-size:.72rem; letter-spacing:.6px; font-weight:600;
+    color:var(--cream);
+  }
+  .flip-back{
+    background:var(--cream);
+    color:var(--ink);
+    transform:rotateY(180deg);
+    justify-content:center;
+    text-align:center;
+    padding:26px 20px;
+  }
+  .flip-back .quote-label{ font-size:.65rem; letter-spacing:2px; color:var(--maroon); font-weight:700; margin-bottom:14px; }
+  .flip-back blockquote{ font-size:1.05rem; line-height:1.5; font-weight:600; margin-bottom:14px; color:var(--ink); }
+  .flip-back cite{ font-style:normal; font-size:.85rem; color:var(--ink-soft); }
+
+  .tap-hint{ font-size:.75rem; color:var(--text-secondary); margin-bottom:18px; text-align:center; }
+  .download-row{ display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-bottom:14px; }
+  .progress-hint{ font-size:.75rem; color:var(--text-secondary); margin-top:auto; padding-top:20px; text-align:center; }
+
+  @media (min-width:480px){ .card-grid{ max-width:460px; } }
+</style>
+</head>
+<body>
+
+  <!-- SCREEN: Intro -->
+  <section class="screen active" id="screen-intro">
+    <div style="flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+      <div class="eyebrow">Bạn nhìn thấy gì về Người lãnh đạo bên trong bản thân?</div>
+      <h1>THE LEADER<br>I SEE</h1>
+      <p class="lead">Đừng suy nghĩ quá nhiều.<br>Hãy để trực giác dẫn lối — chọn tấm ảnh khiến ánh mắt bạn dừng lại, rồi khám phá thông điệp đang chờ bạn phía sau.</p>
+      <button class="btn btn-primary btn-block" onclick="startGame()">Bắt đầu</button>
+    </div>
+  </section>
+
+  <!-- SCREEN: Grid chọn ảnh (Bước 1) -->
+  <section class="screen" id="screen-grid">
+    <div class="grid-header">
+      <div class="eyebrow">Bước 1 — Chọn</div>
+      <h2>Chọn tấm ảnh khiến ánh mắt bạn dừng lại</h2>
+      <div class="instruction">Chạm để chọn 1 ảnh. Không có đúng hay sai — chỉ có góc nhìn của riêng bạn.</div>
+    </div>
+    <div class="card-grid" id="cardGrid"></div>
+    <button class="shuffle-btn" id="shuffleBtn" onclick="shuffleGrid()">
+      <span class="shuffle-icon">🔀</span> Đổi bộ ảnh khác
+    </button>
+    <div class="progress-hint">9 / 30 ảnh trong kho — bạn có thể đổi bộ bao nhiêu lần tùy thích</div>
+  </section>
+
+  <!-- SCREEN: Reveal (Bước 2) -->
+  <section class="screen" id="screen-reveal">
+    <div class="reveal-wrap">
+      <div class="eyebrow">Bước 2 — Khám phá</div>
+      <h2>Lật tấm thẻ để xem điều đang chờ bạn</h2>
+      <div class="flip-card" id="flipCard" onclick="toggleFlip()">
+        <div class="flip-inner" id="flipInner">
+          <div class="flip-face flip-front" id="flipFront">
+            <span>BẠN NHÌN THẤY GÌ?</span>
+          </div>
+          <div class="flip-face flip-back">
+            <div class="quote-label">CÂU NÓI</div>
+            <blockquote id="quoteText"></blockquote>
+            <cite id="quoteAuthor"></cite>
+          </div>
+        </div>
+      </div>
+      <div class="tap-hint">Chạm vào thẻ để lật qua lật lại</div>
+
+      <div class="download-row">
+        <button class="btn btn-ghost btn-sm" onclick="downloadFront()">⬇️ Tải mặt trước</button>
+        <button class="btn btn-ghost btn-sm" onclick="downloadBack()">⬇️ Tải mặt sau</button>
+      </div>
+
+      <button class="btn btn-primary btn-block" onclick="restartFromGrid()">🔀 Chọn ảnh khác</button>
+    </div>
+  </section>
+
+  <!-- Canvas ẩn dùng để render ảnh tải về -->
+  <canvas id="renderCanvas" width="900" height="1200" style="display:none;"></canvas>
+
+<script>
+  // === DATA BANK: 30 cards ===
+  // "img" trỏ tới file ảnh thật trong thư mục /images — đổi tên 30 ảnh của bạn theo đúng quy ước bên dưới
+  // (leader-01.jpg ... leader-30.jpg), đặt vào thư mục images/ cùng cấp với file HTML này.
+  const cardBank = [
+    { id:1,  img:"images/leader-01.jpg", theme:"Leading Self",      quote:"Hiểu chính mình là khởi đầu của mọi trí tuệ.", author:"Aristotle" },
+    { id:2,  img:"images/leader-02.jpg", theme:"Leading Self",      quote:"Can đảm không phải là không sợ hãi, mà là chiến thắng được nỗi sợ hãi đó.", author:"Nelson Mandela" },
+    { id:3,  img:"images/leader-03.jpg", theme:"Leading Self",      quote:"Với tư duy phát triển, thử thách trở thành điều thú vị chứ không phải mối đe dọa.", author:"Carol Dweck" },
+    { id:4,  img:"images/leader-04.jpg", theme:"Leading Self",      quote:"Ngã bảy lần, đứng dậy tám lần.", author:"Tục ngữ Nhật Bản" },
+    { id:5,  img:"images/leader-05.jpg", theme:"Leading Self",      quote:"Được là chính mình giữa một thế giới không ngừng cố biến bạn thành người khác — đó là thành tựu vĩ đại nhất.", author:"Ralph Waldo Emerson" },
+
+    { id:6,  img:"images/leader-06.jpg", theme:"Leading with Purpose", quote:"Lãnh đạo là khả năng biến tầm nhìn thành hiện thực.", author:"Warren Bennis" },
+    { id:7,  img:"images/leader-07.jpg", theme:"Leading with Purpose", quote:"Người ta không mua những gì bạn làm, họ mua lý do vì sao bạn làm điều đó.", author:"Simon Sinek" },
+    { id:8,  img:"images/leader-08.jpg", theme:"Leading with Purpose", quote:"Giá trị sống giống như dấu vân tay — không ai giống ai, nhưng bạn để lại nó trên mọi việc mình làm.", author:"Elvis Presley" },
+    { id:9,  img:"images/leader-09.jpg", theme:"Leading with Purpose", quote:"Những điều quan trọng nhất không bao giờ được phép phụ thuộc vào những điều ít quan trọng nhất.", author:"Johann Wolfgang von Goethe" },
+    { id:10, img:"images/leader-10.jpg", theme:"Leading with Purpose", quote:"Trong bất kỳ khoảnh khắc nào phải ra quyết định, điều tốt nhất bạn có thể làm là làm điều đúng đắn.", author:"Theodore Roosevelt" },
+
+    { id:11, img:"images/leader-11.jpg", theme:"Leading People", quote:"Chức năng của lãnh đạo là tạo ra nhiều nhà lãnh đạo hơn, chứ không phải nhiều người đi theo hơn.", author:"Ralph Nader" },
+    { id:12, img:"images/leader-12.jpg", theme:"Leading People", quote:"Người lãnh đạo giỏi nhất là khi mọi người hầu như không biết đến sự hiện diện của họ... khi việc xong, họ sẽ nói: chúng tôi đã tự làm được.", author:"Lão Tử" },
+    { id:13, img:"images/leader-13.jpg", theme:"Leading People", quote:"Niềm tin là chất keo gắn kết cuộc sống. Đó là thành phần thiết yếu nhất trong giao tiếp hiệu quả.", author:"Stephen R. Covey" },
+    { id:14, img:"images/leader-14.jpg", theme:"Leading People", quote:"Hầu hết mọi người không lắng nghe để thấu hiểu; họ lắng nghe để đáp lại.", author:"Stephen R. Covey" },
+    { id:15, img:"images/leader-15.jpg", theme:"Leading People", quote:"Trước khi trở thành lãnh đạo, thành công là phát triển bản thân. Khi đã là lãnh đạo, thành công là giúp người khác phát triển.", author:"Jack Welch" },
+
+    { id:16, img:"images/leader-16.jpg", theme:"Leading Together", quote:"Một mình, ta làm được rất ít; cùng nhau, ta làm được rất nhiều.", author:"Helen Keller" },
+    { id:17, img:"images/leader-17.jpg", theme:"Leading Together", quote:"Sự đa dạng là được mời đến bữa tiệc; sự hòa nhập là được mời cùng khiêu vũ.", author:"Verna Myers" },
+    { id:18, img:"images/leader-18.jpg", theme:"Leading Together", quote:"Người ta sẽ quên những gì bạn nói... nhưng sẽ không bao giờ quên cảm giác bạn mang lại cho họ.", author:"Maya Angelou" },
+    { id:19, img:"images/leader-19.jpg", theme:"Leading Together", quote:"Tài năng thắng những trận đấu, nhưng tinh thần đồng đội và trí tuệ mới giành được chức vô địch.", author:"Michael Jordan" },
+    { id:20, img:"images/leader-20.jpg", theme:"Leading Together", quote:"Hòa bình không phải là không có xung đột, mà là khả năng giải quyết xung đột bằng con đường hòa bình.", author:"Ronald Reagan" },
+
+    { id:21, img:"images/leader-21.jpg", theme:"Leading through Change", quote:"Không phải loài mạnh nhất sống sót, mà là loài thích nghi tốt nhất với thay đổi.", author:"Thường được gán cho Charles Darwin" },
+    { id:22, img:"images/leader-22.jpg", theme:"Leading through Change", quote:"Điều duy nhất chúng ta biết chắc về tương lai là nó sẽ khác đi.", author:"Peter Drucker" },
+    { id:23, img:"images/leader-23.jpg", theme:"Leading through Change", quote:"Tôi không thất bại. Tôi chỉ tìm ra 10.000 cách không hiệu quả.", author:"Thomas Edison" },
+    { id:24, img:"images/leader-24.jpg", theme:"Leading through Change", quote:"Lãnh đạo và học hỏi luôn song hành, không thể tách rời.", author:"John F. Kennedy" },
+    { id:25, img:"images/leader-25.jpg", theme:"Leading through Change", quote:"Hãy là sự thay đổi mà bạn muốn thấy ở thế giới này.", author:"Mahatma Gandhi" },
+
+    { id:26, img:"images/leader-26.jpg", theme:"Leading for Impact", quote:"Điều gì được đo lường, điều đó mới được quản lý.", author:"Peter Drucker" },
+    { id:27, img:"images/leader-27.jpg", theme:"Leading for Impact", quote:"Lãnh đạo không nằm ở chức danh, vị trí hay sơ đồ tổ chức. Đó là chuyện một cuộc đời tạo ảnh hưởng đến một cuộc đời khác.", author:"John C. Maxwell" },
+    { id:28, img:"images/leader-28.jpg", theme:"Leading for Impact", quote:"Chúng ta kiếm sống bằng những gì mình nhận được, nhưng tạo nên cuộc đời bằng những gì mình cho đi.", author:"Winston Churchill" },
+    { id:29, img:"images/leader-29.jpg", theme:"Leading for Impact", quote:"Những gì ta làm cho riêng mình sẽ mất đi cùng ta. Những gì ta làm cho người khác và cho thế giới sẽ ở lại mãi mãi.", author:"Albert Pike" },
+    { id:30, img:"images/leader-30.jpg", theme:"Leading for Impact", quote:"Một người cũng có thể tạo ra khác biệt — và ai cũng nên thử.", author:"John F. Kennedy" }
+  ];
+
+  // === STATE ===
+  const gameState = { screen:"intro", currentNine:[], selectedCard:null, isFlipped:false };
+
+  // === UTIL: Fisher-Yates shuffle ===
+  function shuffleArray(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
+      const j = Math.floor(Math.random()*(i+1));
+      [a[i],a[j]] = [a[j],a[i]];
+    }
+    return a;
+  }
+  function pickNine(){ gameState.currentNine = shuffleArray(cardBank).slice(0,9); }
+
+  // === SCREEN MANAGEMENT ===
+  function showScreen(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    gameState.screen = id;
+  }
+
+  // === GRID RENDER (Bước 1) ===
+  function renderGrid(){
+    const grid = document.getElementById('cardGrid');
+    grid.innerHTML = '';
+    gameState.currentNine.forEach(card=>{
+      const div = document.createElement('div');
+      div.className = 'pcard';
+      div.style.backgroundImage = `url('${card.img}')`;
+      div.dataset.id = card.id;
+      div.innerHTML = `<div class="pcard-label">#${String(card.id).padStart(2,'0')}</div>`;
+      div.onclick = ()=>selectCard(card, div);
+      grid.appendChild(div);
+    });
+  }
+
+  function selectCard(card, el){
+    gameState.selectedCard = card;
+    document.querySelectorAll('.pcard').forEach(c=>c.classList.remove('selected'));
+    el.classList.add('selected');
+    setTimeout(()=>goReveal(card), 350);
+  }
+
+  function shuffleGrid(){
+    const btn = document.getElementById('shuffleBtn');
+    btn.classList.add('spin');
+    setTimeout(()=>btn.classList.remove('spin'), 400);
+    pickNine();
+    renderGrid();
+  }
+
+  // === REVEAL (Bước 2) ===
+  function goReveal(card){
+    gameState.isFlipped = false;
+    document.getElementById('flipFront').style.setProperty('--card-photo', `url('${card.img}')`);
+    document.getElementById('flipInner').classList.remove('flipped');
+    document.getElementById('quoteText').textContent = '"' + card.quote + '"';
+    document.getElementById('quoteAuthor').textContent = '— ' + card.author;
+    showScreen('screen-reveal');
+  }
+
+  function toggleFlip(){
+    gameState.isFlipped = !gameState.isFlipped;
+    document.getElementById('flipInner').classList.toggle('flipped', gameState.isFlipped);
+  }
+
+  // === NAV ===
+  function startGame(){ pickNine(); renderGrid(); showScreen('screen-grid'); }
+  function restartFromGrid(){ pickNine(); renderGrid(); showScreen('screen-grid'); }
+
+  // === DOWNLOAD ẢNH (canvas render với ảnh thật) ===
+  function wrapText(ctx, text, maxWidth){
+    const words = text.split(' ');
+    const lines = [];
+    let line = '';
+    words.forEach(word=>{
+      const test = line ? line + ' ' + word : word;
+      if(ctx.measureText(test).width > maxWidth && line){ lines.push(line); line = word; }
+      else { line = test; }
+    });
+    if(line) lines.push(line);
+    return lines;
+  }
+
+  function roundRect(ctx, x, y, w, h, r){
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+
+  function loadImage(src){
+    return new Promise((resolve, reject)=>{
+      const img = new Image();
+      img.onload = ()=>resolve(img);
+      img.onerror = ()=>reject(new Error('Không tải được ảnh: ' + src));
+      img.src = src;
+    });
+  }
+
+  // Vẽ ảnh theo kiểu "cover" (lấp đầy khung, cắt bớt phần thừa) — giống background-size:cover
+  function drawImageCover(ctx, img, x, y, w, h){
+    const imgRatio = img.width / img.height;
+    const targetRatio = w / h;
+    let sx, sy, sw, sh;
+    if (imgRatio > targetRatio) {
+      sh = img.height;
+      sw = sh * targetRatio;
+      sx = (img.width - sw) / 2;
+      sy = 0;
+    } else {
+      sw = img.width;
+      sh = sw / targetRatio;
+      sx = 0;
+      sy = (img.height - sh) / 2;
+    }
+    ctx.drawImage(img, sx, sy, sw, sh, x, y, w, h);
+  }
+
+  async function downloadFront(){
+    const card = gameState.selectedCard;
+    if(!card) return;
+    const canvas = document.getElementById('renderCanvas');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+
+    try{
+      const img = await loadImage(card.img);
+      drawImageCover(ctx, img, 0, 0, w, h);
+    } catch(err){
+      alert('Không tìm thấy file ảnh "' + card.img + '". Kiểm tra lại đường dẫn/tên file trong thư mục images/.');
+      return;
+    }
+
+    // overlay tối dần phía dưới để chữ luôn đọc rõ
+    const shade = ctx.createLinearGradient(0, h*0.42, 0, h);
+    shade.addColorStop(0, 'rgba(0,0,0,0)');
+    shade.addColorStop(1, 'rgba(0,0,0,.62)');
+    ctx.fillStyle = shade;
+    ctx.fillRect(0,0,w,h);
+
+    // pill "BẠN NHÌN THẤY GÌ?"
+    ctx.font = '600 26px "Segoe UI", sans-serif';
+    const label = 'BẠN NHÌN THẤY GÌ?';
+    const labelWidth = ctx.measureText(label).width;
+    const pillW = labelWidth + 60, pillH = 54;
+    const pillX = (w - pillW)/2, pillY = h - 90;
+    ctx.fillStyle = 'rgba(31,13,8,.82)';
+    roundRect(ctx, pillX, pillY, pillW, pillH, 27);
+    ctx.fill();
+    ctx.fillStyle = '#F2E9D8';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, w/2, pillY + pillH/2 + 2);
+
+    triggerDownload(canvas, `leader-i-see_${card.id}_mat-truoc.png`);
+  }
+
+  function downloadBack(){
+    const card = gameState.selectedCard;
+    if(!card) return;
+    const canvas = document.getElementById('renderCanvas');
+    const ctx = canvas.getContext('2d');
+    const w = canvas.width, h = canvas.height;
+
+    ctx.fillStyle = '#F2E9D8';
+    ctx.fillRect(0,0,w,h);
+
+    ctx.textAlign = 'center';
+
+    ctx.fillStyle = '#A60321';
+    ctx.font = '700 22px "Segoe UI", sans-serif';
+    ctx.textBaseline = 'alphabetic';
+    ctx.fillText('C  Â  U     N  Ó  I', w/2, h*0.32);
+
+    ctx.fillStyle = '#5C3A1F';
+    ctx.font = '600 40px "Segoe UI", sans-serif';
+    const quoteLines = wrapText(ctx, '"' + card.quote + '"', w - 140);
+    let y = h*0.32 + 70;
+    quoteLines.forEach(line=>{ ctx.fillText(line, w/2, y); y += 52; });
+
+    ctx.fillStyle = '#6B4526';
+    ctx.font = '400 30px "Segoe UI", sans-serif';
+    ctx.fillText('— ' + card.author, w/2, y + 30);
+
+    triggerDownload(canvas, `leader-i-see_${card.id}_mat-sau.png`);
+  }
+
+  function triggerDownload(canvas, filename){
+    canvas.toBlob(function(blob){
+      if(!blob){ alert('Không thể tạo ảnh. Vui lòng thử lại.'); return; }
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    }, 'image/png');
+  }
+
+  // === INIT ===
+  showScreen('screen-intro');
+</script>
+</body>
+</html>
